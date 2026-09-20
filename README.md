@@ -160,31 +160,68 @@ Laundry costs $1.75 wash, $1.75 dry, app-based. On noise: moderate; the building
 
 ## Sample Answer
 
-<!-- One complete question and answer, pasted as text, with the source line
-     visible. Milestone 4. -->
-
-**Question:**
+**Question:** How much does a wash cost in the Morrow House laundry room?
 
 **Answer:**
 
 ```
+  (best distance 0.220, cutoff 0.6)
 
+A wash costs $1.50 in the Morrow House laundry room.
+
+Source: housing_morrow_house_laundry.txt (also found in housing_morrow_house.txt)
+
+Sources retrieved: housing_aldridge_hall_laundry.txt, housing_innisfree_hall_laundry.txt, housing_morrow_house.txt, housing_morrow_house_laundry.txt, housing_old_brewhouse_laundry.txt
+
+1 model calls this session, 745 tokens (704 in, 41 out)
 ```
 
-**My relevance cutoff:**
+I picked this question deliberately because it is the hardest one I have. Seven
+halls each have a laundry file and the files are word-for-word identical apart
+from the price, so three wrong-hall chunks (Aldridge, Innisfree, Old Brewhouse)
+were in the model's context alongside the right one. It still answered $1.50,
+which is Morrow's price and not any of theirs, and it named the file the figure
+came from rather than a plausible-looking sibling. It also noticed on its own
+that the same price appears in `housing_morrow_house.txt` — which is true, and
+is the duplication between hall summaries and their `_laundry` files that I
+wrote about under Chunking Strategy.
 
-<!-- The number you set in config.py, and how you got there.
+**My relevance cutoff:** 0.6
 
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
+I kept the starter's number, but only after measuring — it is the middle of the
+range my own data supports, not an inherited default. My five in-corpus
+questions ran 0.220 to 0.398 and the five out-of-scope questions ran 0.825 to
+0.934. That is a gap of 0.427 with nothing in it, so any cutoff between about
+0.45 and 0.75 would separate the two groups perfectly on these ten questions.
+0.6 sits near the middle of that window, leaving 0.202 of margin above my worst
+real question and 0.225 below my nearest out-of-scope one.
 
-     Milestone 4. -->
+What I would get wrong at 0.6: I wrote my five in-corpus questions after
+reading the documents, so I already knew what the answers were and where they
+sat — which makes them easier than questions asked cold. A vaguer question from
+someone who had not read the corpus could land at 0.65 and be
+refused even though the answer is sitting in the corpus. Moving to 0.7 would
+catch those and still refuse all five out-of-scope questions, but it spends most
+of the safety margin — a near-miss like "where is the nearest pharmacy" would
+get through and be answered from thin material. I would rather refuse a few real
+questions than answer one I shouldn't, so I stayed at 0.6.
 
-| Question | In corpus? | Best distance |
-| -------- | ---------- | ------------- |
-|          |            |               |
+I left `TOP_K` at 5. All five in-corpus questions return the correct document at
+rank 1, not rank 3 or 5, so widening retrieval would add loosely related
+material without finding anything new.
+
+| Question                                                    | In corpus? | Best distance |
+| ----------------------------------------------------------- | ---------- | ------------- |
+| How much does a wash cost in the Morrow House laundry room? | Yes        | 0.220         |
+| How much printing does each student get per semester?       | Yes        | 0.275         |
+| At what time the health center open for walk-ins?           | Yes        | 0.332         |
+| How's winter actually feels like in the campus?             | Yes        | 0.390         |
+| Which study rooms have white boards?                        | Yes        | 0.398         |
+| What is the capital of Mongolia?                            | No         | 0.825         |
+| What is the recommended dosage of ibuprofen for a headache? | No         | 0.844         |
+| Who won the 1994 World Cup?                                 | No         | 0.886         |
+| How do I write a for loop in Rust?                          | No         | 0.896         |
+| How do I change the oil in a diesel engine?                 | No         | 0.934         |
 
 ## How I Used AI
 
