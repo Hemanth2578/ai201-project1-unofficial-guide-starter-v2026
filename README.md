@@ -1,31 +1,16 @@
 # The Unofficial Guide
 
-<!-- Replace this line with your name and which corpus you picked. -->
-
-> **This file is your submission.** Fill it in as you go — most sections get
-> written during the milestone that produces them, not at the end.
->
-> How the starter works, and every command you'll need, is in `RUNNING.md`.
-> Leave that file alone.
->
-> **Paste everything as text.** No screenshots, no video. A typed table gets
-> full credit; a picture of the same table gets none.
->
-> Delete these instruction blocks as you replace them. The `<!-- -->` comments
-> are notes to you and don't show up when the page renders — you can leave them
-> or remove them.
-
 ---
 
 # Unit 1
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
+I built this over `campus_life`, 88 short posts about student life — dorms,
+dining halls, courses, the admin rules nobody explains. Ask it something
+specific and it finds the right documents and answers from those alone, naming
+the file. Ask what a wash costs in Morrow House and you get $1.50. Ask the
+capital of Mongolia and it tells you it doesn't know.
 
 ## Chunking Strategy
 
@@ -34,16 +19,6 @@ ceiling sits in `split_documents` as a safety valve, but it never fires on this
 corpus.
 
 **Overlap:** None. Nothing is split, so there is nothing to overlap.
-
-<!-- What about YOUR documents made you pick these numbers? Short posts and
-     long sectioned guides don't want the same chunking, and "800 seemed
-     reasonable" earns nothing. Point at something you noticed when you read
-     the documents in Milestone 1.
-
-     If you changed your mind partway through, say so and say why. That's worth
-     more than pretending you got it right first time.
-
-     Milestone 3. -->
 
 I picked `campus_life`, and the first thing `python app.py index` told me was
 that the starter's 800-character window never cut anything: 88 documents in, 88
@@ -94,15 +69,6 @@ cause, and the fix to try is splitting only `housing_*.txt` and `course_*.txt`
 on their paragraph breaks while leaving everything else whole.
 
 ## Sample Chunks
-
-<!-- Five chunks, pasted as text. Label each one and name the file it came from
-     AND the function that produced it — the grader checks your code against
-     what you claim here.
-
-     `python app.py chunks -n 5` prints all three for you. Copy them straight
-     across.
-
-     Milestone 3. -->
 
 **Chunk 1** — source: admin_add_drop_deadline.txt#0 `— produced by: chunker.py::split_documents`
 
@@ -225,18 +191,15 @@ material without finding anything new.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+**1.** I described my approach, one post per chunk, and had Claude write
+`split_documents` from it. It added an 800-character fallback for anything too
+long to keep whole. I kept that, and had it record in the docstring why I turned
+down paragraph splitting.
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
-
-     Milestone 5. -->
-
-**1.**
-
-**2.**
+**2.** I also used it to check my five questions against the corpus, polish the
+wording, and run the similarity scores. Then I had it tighten the grounding
+prompt so a document that only mentions the topic, without answering, returns
+"I don't have enough information" instead of a guess.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
