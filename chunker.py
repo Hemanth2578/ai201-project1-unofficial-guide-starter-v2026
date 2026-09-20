@@ -82,6 +82,7 @@ def fallback_split(
 
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
+    
     Split documents into chunks. ⚠️ REPLACE THE BODY OF THIS IN MILESTONE 3.
 
     Right now it just calls the fallback. That is the plain, generic behaviour
@@ -96,8 +97,63 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
       - Is the useful information in one sentence, or spread over a paragraph?
       - Would splitting on paragraph breaks keep more thoughts intact than
         splitting on a character count?
+
+
+
+    MY STRATEGY: every document in `campus_life` is a title line followed by
+    one to four short paragraphs, and the whole thing already reads as a single
+    self-contained answer to a single question. The documents run 178 to 549
+    characters, averaging 317. Nothing in the corpus is long enough to need
+    cutting, so this keeps each document whole and deliberately does NOT split.
+
+    That looks like the starter's behaviour and is not the same thing. The
+    starter left documents whole by accident: `fallback_split` cuts blind at
+    800 characters and simply never reached that limit here, so a longer
+    document would have been sliced mid-sentence. This keeps them whole on
+    purpose, and hands anything genuinely oversized to `fallback_split` rather
+    than pretending the case cannot arise.
+
+    Why not split on paragraphs, which is the obvious alternative: 56 of the 88
+    documents have exactly two body paragraphs, so paragraph splitting would
+    produce 183 chunks — and 93 of them, half, would fall under 150 characters
+    even with the title line prepended. Half my chunks would be fragments. The
+    second paragraph of a post is usually a related aside ("best time to do
+    laundry here is Tuesday"), not a separate topic, and it costs little to
+    leave it attached to the paragraph it qualifies.
+
+    The trade-off I am accepting: a document covering two genuinely different
+    topics — `health_center.txt` is walk-in hours AND counselling intake —
+    stays as one chunk, so its embedding is an average of both. If retrieval
+    misses on that kind of question, this is the cause, and splitting those
+    specific documents is the fix to try in future.
+
+    Chunks from the oversized path keep `chunker.py::fallback_split` as their
+    provenance, so `app.py chunks` shows honestly which path produced what.
     """
-    return fallback_split(documents)
+    chunks: list[Chunk] = []
+
+    for doc in documents:
+        text = doc.text.strip()
+        if not text:
+            continue
+
+        # Safety valve. Never fires on campus_life (longest document is 549),
+        # but it means the strategy degrades sensibly rather than emitting one
+        # enormous chunk if a longer document is ever added.
+        if len(text) > config.CHUNK_SIZE:
+            chunks.extend(fallback_split([doc]))
+            continue
+
+        chunks.append(
+            Chunk(
+                text=text,
+                source=doc.source,
+                index=0,
+                produced_by="chunker.py::split_documents",
+            )
+        )
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:

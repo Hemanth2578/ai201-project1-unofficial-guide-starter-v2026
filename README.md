@@ -29,8 +29,11 @@
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** No fixed window — one document is one chunk. An 800-character
+ceiling sits in `split_documents` as a safety valve, but it never fires on this
+corpus.
+
+**Overlap:** None. Nothing is split, so there is nothing to overlap.
 
 <!-- What about YOUR documents made you pick these numbers? Short posts and
      long sectioned guides don't want the same chunking, and "800 seemed
@@ -41,6 +44,54 @@
      more than pretending you got it right first time.
 
      Milestone 3. -->
+
+I picked `campus_life`, and the first thing `python app.py index` told me was
+that the starter's 800-character window never cut anything: 88 documents in, 88
+chunks out. The documents run 178 to 549 characters, averaging 317. That isn't
+a bug and it isn't nothing — for these documents, one post already is one
+chunk. The question Milestone 3 actually put to me was whether to leave it that
+way.
+
+Reading the documents, each one is a title line followed by one to four short
+paragraphs, and the whole thing reads as a single self-contained answer to a
+single question. `admin_add_drop_deadline.txt` is three facts about one
+deadline. `course_hist_118_workload.txt` is the reading load for one course and
+nothing else. Cutting either of those makes both halves worse.
+
+So I kept documents whole — but deliberately rather than by accident, which is
+the part that matters. The starter left them whole by luck: `fallback_split`
+cuts blind at 800 characters and simply never reached that limit here, so a
+longer document would have been sliced mid-sentence. My `split_documents`
+emits one chunk per document on purpose and hands anything over 800 characters
+to `fallback_split` instead of pretending the case cannot arise. Same output on
+this corpus, different behaviour on any other.
+
+**Why not split on paragraphs**, which was the obvious alternative: I measured
+it before writing any code. 56 of my 88 documents have exactly two body
+paragraphs, so paragraph splitting would produce 183 chunks — and 93 of them,
+half, would fall under 150 characters even with the title line prepended. Half
+my chunks would be fragments, which fails my own acceptance criterion 4. The
+second paragraph of a post is usually a related aside ("best time to do laundry
+here is Tuesday or Wednesday morning"), not a separate topic, and it costs
+little to leave it attached to what it qualifies.
+
+**What I found afterwards, having already decided.** Printing five chunks and
+reading them turned up a case my rule handles badly.
+`housing_innisfree_hall.txt` covers six things in one chunk — build dates, room
+layout, the good, no air conditioning, laundry prices and noise — so its
+embedding is an average of all six and it matches every housing question a
+little and none of them well. Checking how widespread that is: 14 files mention
+a wash price, because every hall summary repeats the price already given in its
+own `_laundry` file. About 16 of my 88 documents have this shape — 7 hall
+summaries and 9 course summaries — each duplicating content from dedicated
+sibling files.
+
+I did not change my numbers, because the other ~72 documents genuinely are one
+thought each and re-chunking all of them to fix 16 would make the common case
+worse. But it is a real cost and I would rather name it than discover it in the
+run log: if a housing or course question retrieves badly in unit 2, this is the
+cause, and the fix to try is splitting only `housing_*.txt` and `course_*.txt`
+on their paragraph breaks while leaving everything else whole.
 
 ## Sample Chunks
 
@@ -53,29 +104,58 @@
 
      Milestone 3. -->
 
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: admin_add_drop_deadline.txt#0 `— produced by: chunker.py::split_documents`
 
 ```
+On the add/drop deadline
+
+You can add a course through the end of the second week. Dropping is a longer window — through the end of week six — but a drop after week two shows as a W on your transcript. Nothing anywhere on the registrar's site says this plainly, and students find out from each other.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: course_biol_160.txt#0 `— produced by: chunker.py::split_documents`
 
 ```
+BIOL 160 Cell Biology
+
+I lived here my sophomore year. Format is lecture three times a week with a weekly lab. Assessment: four unit tests and a cumulative final. Not curved.
+
+Expect 9 to 11 hours a week, the heaviest first-year course by reputation.
+
+The one piece of advice: the unit tests come fast, roughly every three weeks; falling behind once is very hard to recover from.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: course_hist_118_workload.txt#0 `— produced by: chunker.py::split_documents`
 
 ```
+Workload for HIST 118 Modern World History
+
+People keep asking so: a lot of reading, about 120 pages a week, but no problem sets. That's real time, not optimistic time.
+
+It's front-loaded — the first month is heavier than the rest, partly because you're learning the format.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: dining_pellew_dining_hall_followup.txt#0 `— produced by: chunker.py::split_documents`
 
 ```
+Re: Pellew Dining Hall
+
+Adding to what people have said about Pellew Dining Hall. The wait figure of 12 to 18 minutes at peak matches what I've seen. If you're trying to eat between classes, go before 11:45 and it's a different building entirely.
+
+Also worth saying: the furthest hall from anywhere, next to the athletics centre. Nobody tells you this at orientation.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: housing_innisfree_hall.txt#0 `— produced by: chunker.py::split_documents`
 
 ```
+Innisfree Hall — what it's actually like
+
+Transferred in last year, so take this with a grain of salt. Built 1991, renovated 2022. Rooms are doubles arranged as pairs sharing one bathroom between two rooms.
+
+The good: the shared-bathroom-between-two-rooms arrangement is the best compromise on campus.
+
+The bad: no air conditioning, which matters for the first three weeks of September.
+
+Laundry costs $1.75 wash, $1.75 dry, app-based. On noise: moderate; the building is L-shaped and the short wing is much quieter.
 ```
 
 ## Sample Answer
@@ -88,6 +168,7 @@
 **Answer:**
 
 ```
+
 ```
 
 **My relevance cutoff:**
@@ -102,8 +183,8 @@
      Milestone 4. -->
 
 | Question | In corpus? | Best distance |
-|---|---|---|
-|  |  |  |
+| -------- | ---------- | ------------- |
+|          |            |               |
 
 ## How I Used AI
 
@@ -145,13 +226,13 @@
 
      Milestone 1. -->
 
-| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
-|---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| Criterion                              | Target | Run 1 | Run 2 | Run 3 | Verdict |
+| -------------------------------------- | ------ | ----- | ----- | ----- | ------- |
+| 1. Retrieved chunk contains the answer | 4 of 5 |       |       |       |         |
+| 2. Every answer names a source         | 5 of 5 |       |       |       |         |
+| 3. Gate stops out-of-corpus questions  | 4 of 5 |       |       |       |         |
+| 4.                                     |        |       |       |       |         |
+| 5.                                     |        |       |       |       |         |
 
 <!-- Underneath, paste the REAL output for each criterion from one of your
      runs — the actual text your system produced, not a description of it.
@@ -168,13 +249,13 @@
 
      Milestone 2. -->
 
-| # | Criterion | Verdict | How I decided |
-|---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| #   | Criterion | Verdict | How I decided |
+| --- | --------- | ------- | ------------- |
+| 1   |           |         |               |
+| 2   |           |         |               |
+| 3   |           |         |               |
+| 4   |           |         |               |
+| 5   |           |         |               |
 
 ## Diagnoses
 
@@ -210,13 +291,13 @@
 <!-- Same format, same five criteria, three runs each.
      `python run_eval.py --label after` -->
 
-| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
-|---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| Criterion                              | Target | Run 1 | Run 2 | Run 3 | Verdict |
+| -------------------------------------- | ------ | ----- | ----- | ----- | ------- |
+| 1. Retrieved chunk contains the answer | 4 of 5 |       |       |       |         |
+| 2. Every answer names a source         | 5 of 5 |       |       |       |         |
+| 3. Gate stops out-of-corpus questions  | 4 of 5 |       |       |       |         |
+| 4.                                     |        |       |       |       |         |
+| 5.                                     |        |       |       |       |         |
 
 **Did it help?**
 
