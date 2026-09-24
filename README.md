@@ -228,17 +228,227 @@ prompt so a document that only mentions the topic, without answering, returns
 
      Milestone 1. -->
 
-| Criterion                              | Target | Run 1 | Run 2 | Run 3 | Verdict |
-| -------------------------------------- | ------ | ----- | ----- | ----- | ------- |
-| 1. Retrieved chunk contains the answer | 4 of 5 |       |       |       |         |
-| 2. Every answer names a source         | 5 of 5 |       |       |       |         |
-| 3. Gate stops out-of-corpus questions  | 4 of 5 |       |       |       |         |
-| 4.                                     |        |       |       |       |         |
-| 5.                                     |        |       |       |       |         |
+| Criterion                                       | Target   | Run 1 | Run 2 | Run 3 | Verdict |
+| ----------------------------------------------- | -------- | ----- | ----- | ----- | ------- |
+| 1. Retrieved chunk contains the answer          | 4 of 5   | 5/5   | 5/5   | 5/5   |         |
+| 2. Every answer names a source                  | 5 of 5   | 5/5   | 5/5   | 5/5   |         |
+| 3. Gate stops out-of-corpus questions           | 4 of 5   | 5/5   | 5/5   | 5/5   |         |
+| 4. Chunks ≥150 chars and include the title line | 10 of 10 | 10/10 | 10/10 | 10/10 |         |
+| 5. Named file contains the answer sentence      | 5 of 5   | 5/5   | 5/5   | 5/5   |         |
 
 <!-- Underneath, paste the REAL output for each criterion from one of your
      runs — the actual text your system produced, not a description of it.
      Name the file and function that produced it. -->
+
+Criteria 1, 3 and 4 are deterministic. `split_documents` keeps each document
+whole, so a retrieved chunk is a source file and criterion 1 is a property of
+retrieval alone; criterion 3 is a comparison against a fixed cutoff; criterion 4
+measures the chunks themselves. None involves a model call, so one measurement
+goes in all three columns. Criteria 2 and 5 both read generated text, so they
+are the two that could have moved between runs — `run_eval.py::run_once` passes
+`cache=False`, and the three answers per question differ in wording, which is
+the evidence the runs were real.
+
+### Criterion 1 — retrieved chunks contain the answer
+
+Produced by `store.py::search` over chunks from `chunker.py::split_documents`,
+logged by `run_eval.py::main`. Judged on the retrieved source list, not on the
+generated answer: `scorer.py::judge` checks whether the _answer text_ contains
+the expected string, which is a different measurement.
+
+Because `split_documents` keeps every document whole, a retrieved chunk **is** a
+source file, so "the retrieved chunks contain the answer" is checkable by
+reading the files that came back.
+
+| Question                                                    | Answer lives in                    | In the retrieved sources? |
+| ----------------------------------------------------------- | ---------------------------------- | ------------------------- |
+| How much printing does each student get per semester?       | `admin_printing_quota.txt`         | ✅                        |
+| At what time the health center open for walk-ins?           | `health_center.txt`                | ✅                        |
+| How's winter actually feels like in the campus?             | `winter_gear.txt`                  | ✅                        |
+| Which study rooms have white boards?                        | `study_group_rooms.txt`            | ✅                        |
+| How much does a wash cost in the Morrow House laundry room? | `housing_morrow_house_laundry.txt` | ✅                        |
+
+**5 of 5.** The hard case was the laundry question — seven halls have
+word-for-word identical laundry files apart from the price — and retrieval
+returned the right one at rank 1 (best distance 0.2202, the closest of all five).
+
+Real output, the laundry question, run 1:
+
+```
+### How much does a wash cost in the Morrow House laundry room? — run 1
+
+- Best distance: 0.2202 (passed the gate)
+- Sources retrieved: housing_aldridge_hall_laundry.txt, housing_innisfree_hall_laundry.txt, housing_morrow_house.txt, housing_morrow_house_laundry.txt, housing_old_brewhouse_laundry.txt
+```
+
+`housing_morrow_house_laundry.txt`, from the corpus, contains the answer:
+
+```
+Laundry in Morrow House
+
+Machines take $1.50 wash, $1.25 dry, coin or card. There are eight washers and six dryers for the building, which is the wrong ratio and means the dryers back up on Sunday evenings.
+```
+
+Three of the four other retrieved files are sibling laundry documents, which is
+the failure mode I predicted in criterion 1's "why this target" — it did not
+happen, but the near-misses were in the context window.
+
+This criterion does not vary between runs. Retrieval is deterministic and no
+model call is involved, so the same number goes in all three run columns.
+
+---
+
+### Criterion 2 — every answer names a source
+
+Produced by `generate.py::answer_from_chunks`, called from `run_eval.py::run_once`
+with `cache=False`.
+
+**5 of 5 on all three runs**, 15 answers out of 15. Two runs of the same question,
+to show the wording changed while the source naming held:
+
+```
+### At what time the health center open for walk-ins? — run 1
+
+The health centre is open for walk-ins from 8am to 11am. (Source: health_center.txt)
+```
+
+```
+### At what time the health center open for walk-ins? — run 3
+
+The health center's walk-in hours are from 8am to 11am (health_center.txt).
+```
+
+The model varies where it puts the filename — inline parentheses, a trailing
+`Source:` line, or both — but it never omitted it. A third question, showing the
+trailing-line form:
+
+```
+### How much printing does each student get per semester? — run 2
+
+Each student gets $30 of printing per semester.
+
+Source: admin_printing_quota.txt
+```
+
+This is the only one of the five criteria that reads generated text, so it is the
+only one that could have moved between runs. It didn't.
+
+---
+
+### Criterion 3 — the relevance gate stops out-of-corpus questions
+
+Produced by `run_eval.py::check_out_of_scope`, gate logic in `gate.py::check`,
+cutoff 0.6.
+
+```
+## The relevance gate on out-of-corpus questions
+
+Produced by `run_eval.py::check_out_of_scope`, cutoff 0.6. Refused 5 of 5.
+
+| Out-of-scope question | Best distance | Gate |
+|---|---|---|
+| What is the capital of Mongolia? | 0.825 | refused |
+| How do I change the oil in a diesel engine? | 0.934 | refused |
+| Who won the 1994 World Cup? | 0.886 | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.844 | refused |
+| How do I write a for loop in Rust? | 0.896 | refused |
+```
+
+**5 of 5.** The ibuprofen question is the one I expected to slip through,
+because my corpus has a health centre document. It came back at 0.844 — the
+second-closest of the five to my corpus — so the overlap I predicted is real
+and shows up in the numbers. It was never close to crossing, though: 0.244 of
+margin above the 0.6 cutoff.
+
+Retrieval is deterministic and the gate is a comparison against a fixed number,
+so one pass is the whole measurement and the same number goes in all three
+run columns.
+
+---
+
+### Criterion 4 — every chunk is ≥150 characters and includes its title line
+
+Produced by `app.py::cmd_chunks` over chunks from `chunker.py::split_documents`
+(`python app.py chunks -n 10`, an even spread across all 88 chunks).
+
+| #   | Chunk                                | Characters | Title line present                   |
+| --- | ------------------------------------ | ---------- | ------------------------------------ |
+| 1   | `admin_add_drop_deadline.txt#0`      | 300        | ✅ "On the add/drop deadline"        |
+| 2   | `admin_meal_plan_changes.txt#0`      | 222        | ✅ "On the meal plan changes"        |
+| 3   | `advising_registration.txt#0`        | 292        | ✅ "Registration and your adviser"   |
+| 4   | `course_cs_340_exams.txt#0`          | 206        | ✅ "CS 340 Databases — assessment"   |
+| 5   | `course_hist_118.txt#0`              | 400        | ✅ "HIST 118 Modern World History"   |
+| 6   | `course_phys_130_workload.txt#0`     | 237        | ✅ "Workload for PHYS 130 Mechanics" |
+| 7   | `dining_north_kitchen.txt#0`         | 344        | ✅ "North Kitchen"                   |
+| 8   | `dining_verrill_street_grill.txt#0`  | 409        | ✅ "Verrill Street Grill"            |
+| 9   | `housing_calder_annexe_noise.txt#0`  | 286        | ✅ "Noise levels in Calder Annexe"   |
+| 10  | `housing_morrow_house_laundry.txt#0` | 301        | ✅ "Laundry in Morrow House"         |
+
+**10 of 10.** Shortest sampled chunk is 206 characters, 56 above the 150 floor.
+
+Corroborated across the whole corpus by `chunker.py::describe`:
+
+```
+$ py chunker.py
+88 chunks, 317 characters on average (shortest 178, longest 549), produced by chunker.py::split_documents
+```
+
+The corpus minimum of 178 is above 150, so no chunk anywhere fails the length
+half — the sample is consistent with the full set rather than a lucky draw.
+
+The shortest sampled chunk in full, as real output:
+
+```
+======================================================================
+Chunk 4  |  source: course_cs_340_exams.txt#0  |  produced by: chunker.py::split_documents
+======================================================================
+CS 340 Databases — assessment
+
+One midterm and a final, both open-book. Lightly curved, usually two or three points.
+
+Start the term project in week three, not week eight; everyone learns this the hard way.
+```
+
+This criterion does not vary between runs. `split_documents` reads the corpus off
+disk and emits one chunk per document; no model call is involved.
+
+---
+
+### Criterion 5 — the named file contains the sentence the answer came from
+
+Produced by `generate.py::answer_from_chunks`; verified by reading each named
+file in `corpora/campus_life/documents/`.
+
+| Question                                                    | File the answer named              | Contains the answer sentence?                        |
+| ----------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| How much printing does each student get per semester?       | `admin_printing_quota.txt`         | ✅ "Every student gets $30 of printing per semester" |
+| At what time the health center open for walk-ins?           | `health_center.txt`                | ✅ "Walk-in hours are 8am to 11am"                   |
+| How's winter actually feels like in the campus?             | `winter_gear.txt`                  | ✅ "Cold from mid-November to early March"           |
+| Which study rooms have white boards?                        | `study_group_rooms.txt`            | ✅ "Rooms 210 and 211 have whiteboards"              |
+| How much does a wash cost in the Morrow House laundry room? | `housing_morrow_house_laundry.txt` | ✅ "Machines take $1.50 wash"                        |
+
+**5 of 5 on all three runs.** The laundry question in full, which is the one this
+criterion was written for:
+
+```
+### How much does a wash cost in the Morrow House laundry room? — run 3
+
+A wash costs $1.50 in the Morrow House laundry room.
+
+Source: housing_morrow_house_laundry.txt (also mentioned in housing_morrow_house.txt)
+```
+
+The file it named, from the corpus:
+
+```
+Laundry in Morrow House
+
+Machines take $1.50 wash, $1.25 dry, coin or card. There are eight washers and six dryers for the building, which is the wrong ratio and means the dryers back up on Sunday evenings.
+```
+
+The second file it volunteers, `housing_morrow_house.txt`, also carries the $1.50
+figure — that is the hall-summary/`_laundry` duplication I wrote about under
+Chunking Strategy, and the model spotted it unprompted rather than being asked.
 
 ## Verdicts
 
