@@ -203,6 +203,38 @@ wording, and run the similarity scores. Then I had it tighten the grounding
 prompt so a document that only mentions the topic, without answering, returns
 "I don't have enough information" instead of a guess.
 
+**Unit 2**
+
+**3.** I used Claude to turn the per-question results files into per-criterion
+run logs and to draft the real-output sections, then checked the counts against
+the 15 answers myself. It also showed why my three runs were real and not
+cached: `run_eval.py::run_once` passes `cache=False`, and the wording differs
+between runs of the same question.
+
+**4.** For Milestone 2 I used the prompt the brief suggests and asked it to
+argue the opposite verdict for each criterion. Four of those arguments failed.
+The fifth held: `housing_old_brewhouse_laundry.txt` also reads "$1.50 wash" and
+was in my retrieved set, so criterion 5 could pass on a wrong answer. My
+criterion 5 revision came from that. It also named the pattern behind all five
+passes: I had tested everything on material I chose after reading the corpus.
+
+**5.** It got things wrong, and checking caught them. It first said "$1.50"
+appeared in six files including Aldridge; a grep showed four, and Aldridge
+charges $1.75. It called my ibuprofen distance the second-highest of the five
+when it was the second-lowest. It also caught a mistake of mine: I had filled
+in targets of 5 of 5 for criteria 1 and 3 when `criteria.md` says 4 of 5, and I
+put them back.
+
+**6.** For Milestone 4 it proposed the paragraph-split rule after a dry run
+showed it would touch `health_center.txt` and none of my other answer
+documents, wrote down predictions before the run, then made the change, built
+the second index and ran the evaluation. I had considered rewriting my test
+questions to be harder and decided against it, because the after-run has to use
+the same questions as the before-run. One environment slip: it first built the
+index with my system Python, whose newer ChromaDB wrote a collection my
+project's venv could not read. It backed up the index folder and removed only
+that collection; my before index was not affected.
+
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
      claims earns nothing.
@@ -793,9 +825,81 @@ did not ask.
 
      Milestone 5. -->
 
+No criterion is missed after the fix: all five were MET before and MET after.
+That does not mean nothing is broken. These are the things I know are still
+wrong or untested, with what I would do about each and why I stopped.
+
+**1. Criterion 5 passes because the model chose well, not because the pipeline
+prevents the mistake.** `housing_old_brewhouse_laundry.txt`, which also reads
+"$1.50 wash", sits at rank 3 for the Morrow House question, before and after my
+fix. Nothing stops the model naming it; it just has not. *What I'd do:* add
+BM25 keyword search alongside the embeddings, so the exact hall name "Morrow
+House" counts for more than a matching price — a name that semantic search
+glides past is the case hybrid search is for. *Why I stopped:* the brief allows
+one change, and my diagnosis pointed at chunking, not at this.
+
+**2. My fix created a new problem: crowding.** A split document can take two of
+the five top-k slots. It changed which documents the model saw for four of my
+five questions. It never displaced a rank 1 answer, but it would push out an
+answer sitting at rank 4 or 5. *What I'd do:* keep only the best chunk from
+each document when filling the top five. *Why I stopped:* making a second
+change in the same run would have left me unable to tell which change did what.
+
+**3. The half of `health_center.txt` my fix was aimed at is still untested.**
+The split gives counselling intake its own chunk, but none of my questions asks
+about counselling, so the test cannot see whether that helped. *What I'd do:*
+add "How long is the wait for a first counselling session?", expecting "three
+or four days". *Why I stopped:* adding a question now would break the
+before/after comparison, which needs the same questions on both sides.
+
+**4. The relevance gate has never seen a question near its boundary.** In
+Milestone 3 I tightened criterion 3 to five boundary questions — a pharmacy, a
+sprained ankle, laundry in a hall that doesn't exist, CHEM 101, a made-up dining
+hall — with the cutoff held at 0.6. I have not run them. *Why I stopped:* on
+purpose. Running them now would mean setting the target after seeing the
+result. They belong in the next unit's criteria, written down before they are
+measured.
+
+**5. Criterion 2 has never been tested against a refusal.** `gate.REFUSAL`
+names no source, and none of my in-corpus questions was refused, so "every
+answer names a source" is unproven for the one kind of answer that can't. *What
+I'd do:* reword the criterion to say whether a refusal counts as an answer. I
+think it should not. *Why I stopped:* it never came up in a run, so there was
+no failure to diagnose. It is a gap in the wording, not a miss.
+
+**6. My scorer matches strings, and strings over-count.** `scorer.py::judge`
+passes an answer if it contains the `expects` string. "$1.50" also appears in
+`housing_aldridge_hall_laundry.txt` as the *dry* price, so an answer that took
+Aldridge's dry price for Morrow House's wash would still pass. *What I'd do:*
+give each question an expected source file as well, and have the scorer check
+both — the same fix as my criterion 5 revision. *Why I stopped:* changing the
+scorer mid-unit would change what my before numbers mean.
+
 ## What I'd Do Differently
 
 <!-- Knowing what you know now — which of your five criteria would you write
      differently, and why?
 
      Milestone 5. -->
+
+Every criterion I set passed on the first try, and for four of them a failure
+was barely possible with the questions I had written. Next time I would ask of
+each one: what result would make this fail, and can my questions produce it?
+
+- **Criterion 3, most of all.** I would write the out-of-scope questions before
+  choosing the cutoff, make them boundary questions that share my corpus's
+  vocabulary, and never tune on them. I tuned and tested on the same five, and
+  with the nearest one 0.225 above the cutoff, 5 of 5 was close to guaranteed.
+- **Criterion 5.** I would write it the way I revised it: the answer names the
+  right hall or service, not merely a file containing a matching string. I wrote
+  criterion 5 because criterion 2 could be satisfied by any filename, then made
+  the same mistake one level down.
+- **Criterion 4.** I would replace it. It checked that documents stayed whole,
+  which my chunker did by design, so it could only fail if I changed the chunker.
+  I would test the trade-off I actually accepted instead: a question aimed at
+  the second topic of a two-topic document, answered from the right chunk.
+- **Criteria 1 and 2** I would keep, with two changes. I would judge criterion 1
+  on chunk text from the start, because judging it from filenames stopped
+  working the moment my chunking changed. I would also say in criterion 2
+  whether a refusal counts as an answer.
+
