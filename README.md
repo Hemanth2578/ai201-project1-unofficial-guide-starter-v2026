@@ -496,6 +496,78 @@ distinguish a correct answer from a lucky one, which is why it is revised in
 
      Milestone 3. -->
 
+**I missed nothing.** All five criteria held on all three runs, so there is no
+failure to trace to a stage. That is not the same as the system being excellent,
+and my targets were set low. They were not all low in the same way, though, and
+the way they were low is the finding.
+
+### The pattern: I tested the system on the easy version of its job
+
+Four of the five criteria were measured on material I chose after I had already
+read the corpus. That is one problem, not four:
+
+| # | Measured on                                                | Why that made it easy                                                                                                                                                                                                                  |
+| - | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 | Five questions I wrote after reading the documents         | I knew where every answer lived, and the `expects` strings are short and distinctive (`$30`, `8am`, `210 and 211`). |
+| 3 | The same five out-of-scope questions I used to pick 0.6    | I tuned the cutoff on this set in unit 1, then evaluated it on this set. Mongolia, diesel engines, the World Cup and Rust share nothing with student life; the nearest of them sits 0.225 above the cutoff.                              |
+| 4 | Chunks from a corpus I knew was uniformly short            | The criterion asks whether documents stayed whole, and `split_documents` keeps documents whole by design. The shortest of all 88 is 178 characters. It could only fail if I changed the chunker or added a short document.             |
+| 5 | The same five in-corpus questions as criterion 1           | Already revised in `criteria.md`: it checked for the presence of a string, which a wrong file could satisfy.                                                                                                                           |
+
+Criterion 2 is the exception. It is genuinely binary and passed 15 of 15 on its
+merits — but only against answers that got through the gate. No refusal was ever
+produced, so it was never tested against `gate.REFUSAL`, which names no source.
+
+### Where the risk actually sits, by stage
+
+Nothing failed, but the evidence says which stages were never pushed:
+
+- **Chunking** is untested where it is weakest. My chunker docstring names the
+  trade-off I accepted: `health_center.txt` covers walk-in hours *and*
+  counselling intake, so its embedding averages two topics. I asked about
+  walk-in hours, the topic that leads the document. A counselling question
+  would test the half the embedding is diluted on, and I did not ask one.
+- **Retrieval** is strong on these questions rather than on the corpus. Every
+  question returned its answer at rank 1 in unit 1, so tightening criterion 1
+  from "the retrieved chunks include one" to "the top result contains it" would
+  not bite. That tells me the softness is in the questions, not the threshold.
+- **The gate** has never seen a question near the boundary. My own cutoff
+  reasoning in unit 1 named the case I was worried about — a near-miss like
+  "where is the nearest pharmacy" — and then none of my five out-of-scope
+  questions came near it.
+
+### The criterion I would tighten: 3
+
+Criterion 3 cleared its target by the widest margin and rests on the weakest
+evidence, because I set the cutoff and tested it on the same five questions.
+
+> **Original:** When I ask a question my documents clearly don't cover, the
+> relevance gate stops it — in at least 4 of 5 tries.
+>
+> **Tightened to:** The gate refuses at least 4 of 5 *boundary* questions —
+> questions that borrow my corpus's vocabulary but that it cannot answer —
+> written before I measure them, with the cutoff held at 0.6 and not re-tuned
+> on them. For example: where the nearest pharmacy is; how to treat a sprained
+> ankle; what the laundry costs in a hall that does not exist; when CHEM 101's
+> midterm is (a course not in the corpus); what time a dining hall I made up
+> opens.
+
+I am keeping the target at 4 of 5 and changing the questions, because the number
+was never the problem — the questions were far enough from the corpus that 0.6
+could not miss. Every one of those five shares a word or a topic with a real
+document (the health centre, the laundry files, the course and dining families),
+which is the case a real student would hit and the case I never tested.
+
+I have deliberately not run these yet. Setting a target after seeing whether it
+passes is the thing unit 1 asked me not to do, so this stays a prediction: I
+expect at least one of the five to slip through at 0.6, most likely the invented
+hall's laundry price, because seven near-identical laundry documents will pull
+it well inside the in-corpus range.
+
+This is a tightening of a criterion I met, not a revision of one I missed, so
+the original stays in `criteria.md` unchanged. The runner-up would be criterion
+4, which is close to restating a chunking decision I had already made; I would
+replace it with one that tests the two-topic trade-off above.
+
 ## The Improvement
 
 **What I changed:**
