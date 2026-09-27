@@ -461,13 +461,20 @@ Chunking Strategy, and the model spotted it unprompted rather than being asked.
 
      Milestone 2. -->
 
-| #   | Criterion | Verdict | How I decided |
-| --- | --------- | ------- | ------------- |
-| 1   |           |         |               |
-| 2   |           |         |               |
-| 3   |           |         |               |
-| 4   |           |         |               |
-| 5   |           |         |               |
+| #   | Criterion                                    | Verdict | How I decided |
+| --- | -------------------------------------------- | ------- | ------------- |
+| 1   | Retrieved chunks contain the answer          | MET     | Target was 4 of 5 and all three runs gave 5 of 5. Judged on the retrieved source list rather than `scorer.py::judge`, which measures the answer text instead — the two agree here but are different measurements. Reading the file is reading the chunk because all 88 chunks have `index == 0`: `split_documents` never splits, so a retrieved chunk is a whole document. |
+| 2   | Every answer names a source                  | MET     | 15 of 15 answers across three runs named a file, so 5 of 5 every run against a 5-of-5 target. One gap I should name: all five questions passed the gate, so no refusal was produced, and `gate.REFUSAL` names no source. "Every answer" is therefore untested against refusals — not a miss, since the case never arose, but not proven either. |
+| 3   | Gate stops out-of-corpus questions           | MET     | 5 of 5 refused against a 4-of-5 target, the widest margin of the five. The number is real but it is weak evidence: I chose the 0.6 cutoff in unit 1 by measuring these same five questions, so I tuned and tested on one set. It shows the cutoff separates these ten questions, not that it generalises. |
+| 4   | Chunks ≥150 chars and include the title line | MET     | 10 of 10 in the sample, shortest 206 characters. I also checked all 88 rather than relying on a fixed slice: none under 150 (minimum 178) and every chunk opens with its title line. Holds as written and beyond it. |
+| 5   | Named file contains the answer sentence      | MET     | 5 of 5 every run — but only because the model chose correctly, not because the criterion would have caught it otherwise. `housing_old_brewhouse_laundry.txt` also reads "$1.50 wash" and was in the retrieved set on all three runs, so naming it for a Morrow House question would have passed this criterion while being wrong. MET as written; revised in `criteria.md` to check the subject of the question, not a string. |
+
+The verdict I checked hardest was criterion 5. Every criterion came out MET,
+which means either the system is good or the targets were soft, so I argued the
+opposite verdict on each one before writing it down. Four of those arguments
+failed. The fifth did not: criterion 5 passed on a measurement that cannot
+distinguish a correct answer from a lucky one, which is why it is revised in
+`criteria.md` rather than simply recorded.
 
 ## Diagnoses
 

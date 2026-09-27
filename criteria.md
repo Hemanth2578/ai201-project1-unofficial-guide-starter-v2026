@@ -94,6 +94,22 @@ seven laundry documents, three per course — and with `TOP_K = 5` the model see
 several at once. No exceptions rather than 4 of 5 because a confident answer
 pointing at the wrong file is worse than a refusal.
 
+> **Revised in unit 2:** For all 5 test questions that get answered rather than
+> refused, the file the answer names is the one hall or service the question
+> asked about — not merely a file that happens to contain the same figure.
+>
+> **Why revised:** the original measured the wrong thing. It checks that the
+> named file contains the answer text, and two different files can satisfy that
+> at once: `housing_morrow_house_laundry.txt` and
+> `housing_old_brewhouse_laundry.txt` both read "$1.50 wash", and both were in
+> the retrieved set on all three runs of my laundry question. Naming Old
+> Brewhouse for a Morrow House question would have passed the original criterion
+> while being wrong — which is the exact failure I wrote this criterion to catch.
+> The revision names the subject of the question rather than the presence of a
+> string, which is what I meant, and it is still something I can check by reading
+> five answers. The original target of 5 of 5 is unchanged and was met either
+> way; what changes is that the criterion can now fail.
+
 ---
 
 <!-- ─────────────────────────────────────────────────────────────────────────
