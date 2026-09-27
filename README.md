@@ -230,11 +230,11 @@ prompt so a document that only mentions the topic, without answering, returns
 
 | Criterion                                       | Target   | Run 1 | Run 2 | Run 3 | Verdict |
 | ----------------------------------------------- | -------- | ----- | ----- | ----- | ------- |
-| 1. Retrieved chunk contains the answer          | 4 of 5   | 5/5   | 5/5   | 5/5   |         |
-| 2. Every answer names a source                  | 5 of 5   | 5/5   | 5/5   | 5/5   |         |
-| 3. Gate stops out-of-corpus questions           | 4 of 5   | 5/5   | 5/5   | 5/5   |         |
-| 4. Chunks ≥150 chars and include the title line | 10 of 10 | 10/10 | 10/10 | 10/10 |         |
-| 5. Named file contains the answer sentence      | 5 of 5   | 5/5   | 5/5   | 5/5   |         |
+| 1. Retrieved chunk contains the answer          | 4 of 5   | 5/5   | 5/5   | 5/5   | MET     |
+| 2. Every answer names a source                  | 5 of 5   | 5/5   | 5/5   | 5/5   | MET     |
+| 3. Gate stops out-of-corpus questions           | 4 of 5   | 5/5   | 5/5   | 5/5   | MET     |
+| 4. Chunks ≥150 chars and include the title line | 10 of 10 | 10/10 | 10/10 | 10/10 | MET     |
+| 5. Named file contains the answer sentence      | 5 of 5   | 5/5   | 5/5   | 5/5   | MET     |
 
 <!-- Underneath, paste the REAL output for each criterion from one of your
      runs — the actual text your system produced, not a description of it.
@@ -570,9 +570,41 @@ replace it with one that tests the two-topic trade-off above.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** `chunker.py::split_documents` now splits a document into
+one chunk per body paragraph, with the title line carried into each piece — but
+only when every piece stays at or above 150 characters (`MIN_PIECE`). Otherwise
+the document stays whole, exactly as in unit 1. On `campus_life` this splits 7 of
+88 documents, giving 95 chunks instead of 88. Nothing else changed: same five
+questions, same `TOP_K = 5`, same 0.6 cutoff, same prompt. The unit 1 index is
+kept as variant `default` and the new one is variant `split`, so both exist at
+once (`python app.py --variant split index`, then
+`python run_eval.py --variant split --label after`).
 
-**Why I picked it:**
+**Why I picked it:** my diagnosis named `health_center.txt` as the place my
+chunking was weakest — one embedding averaging walk-in hours with counselling
+intake — and this is the smallest change that gives each topic its own embedding
+without making the sub-150 fragments that made me reject paragraph splitting in
+unit 1.
+
+**What I predicted, written down before running it:**
+
+1. The health question's best distance drops below 0.3321, because the walk-in
+   chunk no longer averages in counselling.
+2. All five criteria hold. `health_center.txt` is the only one of my five answer
+   documents that splits; the other four stay whole.
+3. Risk: the ibuprofen question gets closer than 0.844, because a pure health
+   chunk is a better target for a medical question. Still refused.
+
+**Why it might not work**, argued before running:
+
+- Every criterion was already at its ceiling. The pass counts can only hold or
+  fall, so they cannot show an improvement — if there is a benefit, it will only
+  be visible in distance.
+- Walk-in hours already lead the health document, so my question may not have
+  been hurt much by the averaging. The half the averaging hurts most is
+  counselling, and none of my questions asks about it.
+- A split document can take two of the five top-k slots, pushing other documents
+  out of what the model sees.
 
 <!-- Connect it to a specific diagnosis above in one sentence. If you can't,
      you picked a fix because it sounded impressive. -->
@@ -582,13 +614,124 @@ replace it with one that tests the two-topic trade-off above.
 <!-- Same format, same five criteria, three runs each.
      `python run_eval.py --label after` -->
 
-| Criterion                              | Target | Run 1 | Run 2 | Run 3 | Verdict |
-| -------------------------------------- | ------ | ----- | ----- | ----- | ------- |
-| 1. Retrieved chunk contains the answer | 4 of 5 |       |       |       |         |
-| 2. Every answer names a source         | 5 of 5 |       |       |       |         |
-| 3. Gate stops out-of-corpus questions  | 4 of 5 |       |       |       |         |
-| 4.                                     |        |       |       |       |         |
-| 5.                                     |        |       |       |       |         |
+| Criterion                                       | Target   | Run 1 | Run 2 | Run 3 | Verdict |
+| ----------------------------------------------- | -------- | ----- | ----- | ----- | ------- |
+| 1. Retrieved chunk contains the answer          | 4 of 5   | 5/5   | 5/5   | 5/5   | MET     |
+| 2. Every answer names a source                  | 5 of 5   | 5/5   | 5/5   | 5/5   | MET     |
+| 3. Gate stops out-of-corpus questions           | 4 of 5   | 5/5   | 5/5   | 5/5   | MET     |
+| 4. Chunks ≥150 chars and include the title line | 10 of 10 | 10/10 | 10/10 | 10/10 | MET     |
+| 5. Named file contains the answer sentence      | 5 of 5   | 5/5   | 5/5   | 5/5   | MET     |
+
+Evidence: `results/run_2026-09-27_1246_after.md`, produced by `run_eval.py::main`
+against index variant `split`, three runs, `cache=False`, 15 model calls. As
+before, criteria 1, 3 and 4 do not involve a model call, so one measurement goes
+in all three columns; criteria 2 and 5 read generated text.
+
+#### Before and after, side by side
+
+| Criterion                      | Target   | Before       | After        |
+| ------------------------------ | -------- | ------------ | ------------ |
+| 1. Retrieved chunk has answer  | 4 of 5   | 5/5 ×3 MET   | 5/5 ×3 MET   |
+| 2. Every answer names a source | 5 of 5   | 5/5 ×3 MET   | 5/5 ×3 MET   |
+| 3. Gate stops out-of-corpus    | 4 of 5   | 5/5 ×3 MET   | 5/5 ×3 MET   |
+| 4. Chunks ≥150 + title line    | 10 of 10 | 10/10 ×3 MET | 10/10 ×3 MET |
+| 5. Named file has the answer   | 5 of 5   | 5/5 ×3 MET   | 5/5 ×3 MET   |
+
+The pass counts cannot tell the two apart, so the distances are where the change
+shows. Best distance per question, from the two results files:
+
+| Question                         | Before | After  | Change      |
+| -------------------------------- | ------ | ------ | ----------- |
+| Printing per semester            | 0.2749 | 0.2749 | none        |
+| **Health centre walk-ins**       | 0.3321 | 0.2698 | **−0.0623** |
+| Winter                           | 0.3900 | 0.3900 | none        |
+| Whiteboard study rooms           | 0.3981 | 0.3981 | none        |
+| Morrow House wash                | 0.2202 | 0.2202 | none        |
+| _Out of scope:_ Mongolia         | 0.825  | 0.825  | none        |
+| _Out of scope:_ diesel engine    | 0.934  | 0.934  | none        |
+| _Out of scope:_ 1994 World Cup   | 0.886  | 0.886  | none        |
+| _Out of scope:_ **ibuprofen**    | 0.844  | 0.849  | **+0.005**  |
+| _Out of scope:_ Rust for loop    | 0.896  | 0.896  | none        |
+
+#### Real output, after
+
+**Criterion 1.** `health_center.txt` is now two chunks, so the unit 1 shortcut —
+"a retrieved file is a retrieved chunk" — no longer holds for it. I checked
+chunk text instead: for all five questions the answer is in the **rank 1**
+chunk, both before and after. The two chunks `chunker.py::split_documents` now
+makes from the health document:
+
+```
+--- health_center.txt#0 (192 chars) ---
+The health centre
+
+Walk-in hours are 8am to 11am; everything after that is by appointment and appointments run about a week out. If something is urgent, go at 8am and wait rather than booking.
+
+--- health_center.txt#1 (185 chars) ---
+The health centre
+
+Counselling is separate, in the same building, and has its own intake process with a shorter wait than people expect — usually three or four days for a first session.
+```
+
+Rank 1 for the walk-in question is `#0`; `#1`, the counselling half, is rank 2.
+From `run_eval.py::main`:
+
+```
+### At what time the health center open for walk-ins? — run 1
+
+- Best distance: 0.2698 (passed the gate)
+- Sources retrieved: dining_north_kitchen_followup.txt, dining_the_atrium_followup.txt, health_center.txt, study_library_hours.txt
+```
+
+Four sources, not five: the two health chunks take two of the five slots.
+
+**Criterion 2.** 15 of 15 answers name a file. From
+`generate.py::answer_from_chunks`:
+
+```
+### At what time the health center open for walk-ins? — run 1
+The health centre is open for walk-ins from 8am to 11am (health_center.txt).
+
+### At what time the health center open for walk-ins? — run 3
+The health center is open for walk-ins from 8am to 11am (from health_center.txt).
+```
+
+**Criterion 3.** From `run_eval.py::check_out_of_scope`, cutoff 0.6:
+
+```
+| What is the capital of Mongolia? | 0.825 | refused |
+| How do I change the oil in a diesel engine? | 0.934 | refused |
+| Who won the 1994 World Cup? | 0.886 | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.849 | refused |
+| How do I write a for loop in Rust? | 0.896 | refused |
+```
+
+**Criterion 4.** From `chunker.py::describe`:
+
+```
+$ python chunker.py
+95 chunks, 296 characters on average (shortest 152, longest 549), produced by chunker.py::split_documents
+```
+
+The `app.py chunks -n 10` sample passes 10 of 10, but it is a fixed slice and it
+happened to miss all 14 of the new split chunks, so it says nothing about the
+change. I checked all 95 instead: none under 150, and every one begins with its
+own document's title line. The split rule guarantees this by construction — it
+refuses any split that would break either half of the criterion.
+
+**Criterion 5.** Every answer names the file for the hall or service asked
+about, which passes both the original and the revised wording. From
+`generate.py::answer_from_chunks`:
+
+```
+### How much does a wash cost in the Morrow House laundry room? — run 2
+A wash costs $1.50 in the Morrow House laundry room.
+Source: housing_morrow_house_laundry.txt (also mentioned in housing_morrow_house.txt)
+```
+
+`housing_old_brewhouse_laundry.txt`, also "$1.50 wash", is still in the
+retrieved set at rank 3. This change was not aimed at that risk and did not move
+it: the laundry question's top five are identical before and after.
 
 **Did it help?**
 
@@ -598,6 +741,47 @@ replace it with one that tests the two-topic trade-off above.
      tell.
 
      Milestone 4. -->
+
+**Partly, and not in a way my criteria can see.** It did what it was built to do,
+and it moved none of my five numbers. Both are true.
+
+- **The targeted retrieval improved.** The health question went from 0.3321 to
+  0.2698. The walk-in chunk is a closer match on its own than it was averaged
+  with counselling — prediction 1 held. I know the split caused this rather than
+  noise because `health_center.txt` is the only answer document that split, and
+  it is the only in-corpus distance that moved; the other four match to four
+  decimal places.
+- **No criterion moved.** All five were MET before and MET after. By the measure
+  this unit grades, the change neither helped nor hurt — which is what I said
+  would happen, because every target was already at its ceiling.
+- **Prediction 3 was wrong.** I expected the ibuprofen question to move closer to
+  the corpus. It moved away, 0.844 to 0.849. My best guess is that the unsplit
+  health document read as a broader medical text than either half does alone,
+  but I have not tested that; what I can say is that I predicted the wrong
+  direction. It is the safe direction for the gate.
+- **The cost I predicted showed up.** The split changed which documents were in
+  the model's context for four of my five questions, though never the rank 1
+  chunk. The health question's two chunks took ranks 1 and 2, pushing
+  `dining_halden_hall_followup.txt` and `dining_the_ridgeway_cafe_followup.txt`
+  out of the top five. On the printing question, the two halves of
+  `money_textbooks.txt` took two slots and half of the newly split
+  `course_engl_205_workload.txt` took a third, pushing out
+  `admin_graduation_requirements.txt` and `course_cs_340.txt`. It was harmless
+  here because every answer
+  sat at rank 1. For a question whose answer sat at rank 4 or 5, this is the kind
+  of crowding that could push it out.
+- **It changed how I have to measure criterion 1.** With whole-document chunks I
+  could judge criterion 1 from filenames. With split documents I have to read
+  chunk text. Doing that exposed a second weakness in string matching: `$1.50`
+  also matches `housing_aldridge_hall_laundry.txt`, whose wash costs $1.75 — the
+  match is its _dry_ price. That is the same flaw I revised criterion 5 for.
+
+**Would I keep it?** Yes, but I cannot prove it earns its place with these five
+questions. The benefit is aimed at the counselling half of `health_center.txt`,
+and none of my questions asks about counselling. That brings me back to my
+Milestone 3 diagnosis: the soft part of this system is my questions, not my
+pipeline. A test that could show this change working would need the question I
+did not ask.
 
 ## What's Still Broken
 

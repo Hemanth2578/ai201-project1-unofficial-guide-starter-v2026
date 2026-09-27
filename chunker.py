@@ -80,6 +80,27 @@ def fallback_split(
     return chunks
 
 
+# Criterion 4's floor. A paragraph split is refused if any piece would fall
+# under it, which is what kept me from paragraph splitting in unit 1.
+MIN_PIECE = 150
+
+
+def _titled_paragraphs(text: str) -> list[str]:
+    """One piece per body paragraph, each carrying the title line.
+
+    Returns [] when the document should stay whole: fewer than two body
+    paragraphs, or any piece shorter than MIN_PIECE.
+    """
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    title, body = paragraphs[0], paragraphs[1:]
+    if len(body) < 2:
+        return []
+    pieces = [f"{title}\n\n{p}" for p in body]
+    if any(len(p) < MIN_PIECE for p in pieces):
+        return []
+    return pieces
+
+
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
     
@@ -129,6 +150,16 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
 
     Chunks from the oversized path keep `chunker.py::fallback_split` as their
     provenance, so `app.py chunks` shows honestly which path produced what.
+
+    UNIT 2 CHANGE: a document is now split into one chunk per body paragraph,
+    with the title line carried into each, but only when every piece stays at
+    or above MIN_PIECE (150). This targets the trade-off named above:
+    `health_center.txt` had one embedding averaging walk-in hours with
+    counselling intake. The 150 floor is what answers the unit 1 objection:
+    plain paragraph splitting made 93 fragments under 150; this refuses any
+    split that would make one. On campus_life it splits 7 of 88 documents
+    (95 chunks); the other 81 stay whole exactly as before. The unit 1
+    behaviour is preserved in the `default` index; this one is `split`.
     """
     chunks: list[Chunk] = []
 
@@ -142,6 +173,19 @@ def split_documents(documents: list[Document]) -> list[Chunk]:
         # enormous chunk if a longer document is ever added.
         if len(text) > config.CHUNK_SIZE:
             chunks.extend(fallback_split([doc]))
+            continue
+
+        pieces = _titled_paragraphs(text)
+        if pieces:
+            for index, piece in enumerate(pieces):
+                chunks.append(
+                    Chunk(
+                        text=piece,
+                        source=doc.source,
+                        index=index,
+                        produced_by="chunker.py::split_documents",
+                    )
+                )
             continue
 
         chunks.append(
